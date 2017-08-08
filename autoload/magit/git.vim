@@ -34,13 +34,13 @@ function! magit#git#get_status()
 endfunction
 
 function! magit#git#get_config(conf_name, default)
-	silent! let git_result=magit#utils#strip(
+	try
+		silent! let git_result=magit#utils#strip(
 				\ magit#utils#system(g:magit_git_cmd . " config --get " . a:conf_name))
-	if ( v:shell_error != 0 )
+	catch 'shell_error'
 		return a:default
-	else
-		return git_result
-	endif
+	endtry
+	return git_result
 endfunction
 
 " magit#git#is_work_tree: this function check that path passed as parameter is
@@ -119,14 +119,14 @@ function! magit#git#git_diff(filename, status, mode)
 	let git_cmd=g:magit_git_cmd . " diff --no-ext-diff " . staged_flag .
 				\ " --no-color -p -U" . b:magit_diff_context .
 				\ " -- " . dev_null . " " . a:filename
-	silent let diff_list=magit#utils#systemlist(git_cmd)
-	if ( a:status != '?' && v:shell_error != 0 )
-		echohl WarningMsg
-		echom "Git error: " . string(diff_list)
-		echom "Git cmd: " . git_cmd
-		echohl None
-		throw 'diff error'
-	endif
+	try
+		silent let diff_list=magit#utils#systemlist(git_cmd)
+	catch 'shell_error'
+		if ( a:status != '?' )
+			call magit#utils#print_shell_error()
+			throw 'diff error'
+		endif
+	endtry
 	if ( empty(diff_list) )
 		echohl WarningMsg
 		echom "diff command \"" . git_cmd . "\" returned nothing"
@@ -182,14 +182,12 @@ endfunction
 " param[in] filemane: it must be quoted if it contains spaces
 function! magit#git#git_add(filename)
 	let git_cmd=g:magit_git_cmd . " add --no-ignore-removal -- " . a:filename
-	silent let git_result=magit#utils#system(git_cmd)
-	if ( v:shell_error != 0 )
-		echohl WarningMsg
-		echom "Git error: " . git_result
-		echom "Git cmd: " . git_cmd
-		echohl None
+	try
+		silent let git_result=magit#utils#system(git_cmd)
+	catch 'shell_error'
+		call magit#utils#print_shell_error()
 		throw 'add error'
-	endif
+	endtry
 endfunction
 
 " magit#git#git_checkout: helper function to add a whole file
@@ -198,14 +196,12 @@ endfunction
 " param[in] filemane: it must be quoted if it contains spaces
 function! magit#git#git_checkout(filename)
 	let git_cmd=g:magit_git_cmd . " checkout -- " . a:filename
-	silent let git_result=magit#utils#system(git_cmd)
-	if ( v:shell_error != 0 )
-		echohl WarningMsg
-		echom "Git error: " . git_result
-		echom "Git cmd: " . git_cmd
-		echohl None
+	try
+		silent let git_result=magit#utils#system(git_cmd)
+	catch 'shell_error'
+		call magit#utils#print_shell_error()
 		throw 'checkout error'
-	endif
+	endtry
 endfunction
 
 " magit#git#git_reset: helper function to add a whole file
@@ -214,14 +210,12 @@ endfunction
 " param[in] filemane: it must be quoted if it contains spaces
 function! magit#git#git_reset(filename)
 	let git_cmd=g:magit_git_cmd . " reset HEAD -- " . a:filename
-	silent let git_result=magit#utils#system(git_cmd)
-	if ( v:shell_error != 0 )
-		echohl WarningMsg
-		echom "Git error: " . git_result
-		echom "Git cmd: " . git_cmd
-		echohl None
+	try
+		silent let git_result=magit#utils#system(git_cmd)
+	catch 'shell_error'
+		call magit#utils#print_shell_error()
 		throw 'reset error'
-	endif
+	endtry
 endfunction
 
 " magit#git#git_apply: helper function to stage a selection
@@ -236,16 +230,14 @@ function! magit#git#git_apply(header, selection)
 		let selection += [ '' ]
 	endif
 	let git_cmd=g:magit_git_cmd . " apply --recount --no-index --cached -"
-	silent let git_result=magit#utils#system(git_cmd, selection)
-	if ( v:shell_error != 0 )
-		echohl WarningMsg
-		echom "Git error: " . git_result
-		echom "Git cmd: " . git_cmd
+	try
+		silent let git_result=magit#utils#system(git_cmd, selection)
+	catch 'shell_error'
+		call magit#utils#print_shell_error()
 		echom "Tried to aply this"
 		echom string(selection)
-		echohl None
 		throw 'apply error'
-	endif
+	endtry
 endfunction
 
 " magit#git#git_unapply: helper function to unstage a selection
@@ -263,17 +255,16 @@ function! magit#git#git_unapply(header, selection, mode)
 	if ( selection[-1] !~ '^$' )
 		let selection += [ '' ]
 	endif
-	silent let git_result=magit#utils#system(
-		\ g:magit_git_cmd . " apply --recount --no-index " . cached_flag . " --reverse - ",
-		\ selection)
-	if ( v:shell_error != 0 )
-		echohl WarningMsg
-		echom "Git error: " . git_result
+	try
+		silent let git_result=magit#utils#system(
+			\ g:magit_git_cmd . " apply --recount --no-index " . cached_flag . " --reverse - ",
+			\ selection)
+	catch 'shell_error'
+		call magit#utils#print_shell_error()
 		echom "Tried to unaply this"
 		echom string(selection)
-		echohl None
 		throw 'unapply error'
-	endif
+	endtry
 endfunction
 
 " magit#git#submodule_status: helper function to return the submodule status
@@ -287,17 +278,23 @@ endfunction
 " param[in] ref can be HEAD or a branch name
 " return branch name
 function! magit#git#get_branch_name(ref)
-	return magit#utils#strip(magit#utils#system(g:magit_git_cmd . " rev-parse --abbrev-ref " . a:ref))
+	try
+		let git_result = magit#utils#strip(magit#utils#system(g:magit_git_cmd . " rev-parse --abbrev-ref " . a:ref))
+	catch 'shell_error'
+		call magit#utils#print_shell_error()
+	endtry
+	return git_result
 endfunction
 
 " magit#git#get_commit_subject: get the subject of a commit (first line)
 " param[in] ref: reference, can be SHA1, brnach name or HEAD
 " return commit subject
 function! magit#git#get_commit_subject(ref)
-	silent let git_result=magit#utils#strip(magit#utils#system(g:magit_git_cmd . " show --no-patch --format=\"%s\" " . a:ref))
-	if ( v:shell_error != 0 )
+	try
+		silent let git_result=magit#utils#strip(magit#utils#system(g:magit_git_cmd . " show --no-patch --format=\"%s\" " . a:ref))
+	catch 'shell_error'
 		return ""
-	endif
+	endtry
 	return git_result
 endfunction
 
@@ -308,10 +305,11 @@ endfunction
 " param[in] type: type of default remote: upstream or push
 " return the remote branch name, 'none' if it has not
 function! magit#git#get_remote_branch(ref, type)
-	silent let git_result=magit#utils#strip(magit#utils#system(
-		\ g:magit_git_cmd . " rev-parse --abbrev-ref=loose " . a:ref . "@{" . a:type . "}"))
-	if ( v:shell_error != 0 )
+	try
+		silent let git_result=magit#utils#strip(magit#utils#system(
+			\ g:magit_git_cmd . " rev-parse --abbrev-ref=loose " . a:ref . "@{" . a:type . "}"))
+	catch 'shell_error'
 		return "none"
-	endif
+	endtry
 	return git_result
 endfunction

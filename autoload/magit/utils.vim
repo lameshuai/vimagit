@@ -64,7 +64,7 @@ function! magit#utils#system(...)
 		" List as system() input is since v7.4.247, it is safe to check
 		" systemlist, which is sine v7.4.248
 		if exists('*systemlist')
-			return call('system', a:000)
+			let ret = call('system', a:000)
 		else
 			if ( a:0 == 2 )
 				if ( type(a:2) == type([]) )
@@ -74,13 +74,19 @@ function! magit#utils#system(...)
 				else
 					let arg=a:2
 				endif
-				return system(a:1, arg)
+				let ret = system(a:1, arg)
 			else
-				return system(a:1)
+				let ret = system(a:1)
 			endif
 		endif
 	finally
 		call magit#utils#chdir(dir)
+		if ( v:shell_error != 0 )
+			let b:magit_shell_error = string(ret)
+			let b:magit_shell_cmd = string(a:000)
+			throw 'shell_error'
+		endif
+		return ret
 	endtry
 endfunction
 
@@ -103,6 +109,14 @@ function! magit#utils#systemlist(...)
 	finally
 		call magit#utils#chdir(dir)
 	endtry
+endfunction
+
+function! magit#utils#print_shell_error()
+	echohl WarningMsg
+	echom "Shell command error"
+	echom "Cmd: " . b:magit_shell_cmd
+	echom "Error msg: " . b:magit_shell_error
+	echohl None
 endfunction
 
 " magit#utils#underline: helper function to underline a string
